@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Real or AI? – AI content checker</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1f6;--surface:#fff;--ink:#1b2236;--muted:#5a647c;--line:#d5dbe7;--accent:#2f3fd8;--warn:#b45309;--warnbg:#fff4e0;--bad:#b3261e;--badbg:#fdeceb;--ok:#2f6f4e;--okbg:#e8f4ed;--neutralbg:#e7eaf3;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121726;--surface:#1b2236;--ink:#eef1f8;--muted:#a0aac2;--line:#2e3752;--accent:#8f9bff;--warn:#f5b45a;--warnbg:#3a2c14;--bad:#ff8a80;--badbg:#3d1d1b;--ok:#7fd1a0;--okbg:#17301f;--neutralbg:#252e47}}
+:root[data-theme="dark"]{--bg:#121726;--surface:#1b2236;--ink:#eef1f8;--muted:#a0aac2;--line:#2e3752;--accent:#8f9bff;--warn:#f5b45a;--warnbg:#3a2c14;--bad:#ff8a80;--badbg:#3d1d1b;--ok:#7fd1a0;--okbg:#17301f;--neutralbg:#252e47}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.55 "Source Sans 3",system-ui,sans-serif}
+main{max-width:720px;margin:0 auto;padding:40px 20px 64px}
+h1{font:800 clamp(2.2rem,8vw,3.6rem)/1.02 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.02em;margin:0 0 14px}
+h2{font:700 1.25rem/1.2 "Bricolage Grotesque",system-ui,sans-serif;margin:0 0 10px}
+.lead{font-size:1.15rem;color:var(--muted);margin:0 0 28px;max-width:34em}
+.drop{display:block;border:2px dashed var(--accent);border-radius:14px;background:var(--surface);padding:34px 20px;text-align:center;cursor:pointer}
+.drop:focus-within,.drop.over{outline:3px solid var(--accent);outline-offset:2px}
+.drop strong{display:block;font:700 1.2rem "Bricolage Grotesque",sans-serif;margin-bottom:4px}
+.drop span{color:var(--muted)}
+.drop input{position:absolute;opacity:0;width:1px;height:1px}
+#result{display:none;margin-top:24px;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.preview{background:var(--neutralbg);text-align:center}
+.preview img,.preview video{max-width:100%;max-height:320px;display:block;margin:0 auto}
+.body{padding:20px}
+.verdict{padding:14px 16px;border-radius:10px;margin-bottom:16px}
+.verdict h2{margin:0 0 4px}
+.verdict p{margin:0}
+.v-bad{background:var(--badbg);color:var(--bad)}
+.v-warn{background:var(--warnbg);color:var(--warn)}
+.v-none{background:var(--neutralbg);color:var(--ink)}
+.v-ok{background:var(--okbg);color:var(--ok)}
+ul.signals{list-style:none;margin:0;padding:0}
+ul.signals li{padding:10px 0;border-top:1px solid var(--line);display:flex;gap:10px}
+ul.signals b{flex:0 0 auto;min-width:5.2em;font-weight:600}
+.f{color:var(--bad)}.m{color:var(--warn)}.i{color:var(--muted)}
+.note{margin-top:14px;font-size:.95rem;color:var(--muted)}
+section.next{margin-top:36px;padding-top:24px;border-top:1px solid var(--line)}
+section.next p{margin:0 0 10px;color:var(--muted)}
+.tag{display:inline-block;font-weight:600;font-size:.9rem;padding:2px 10px;border-radius:99px;background:var(--neutralbg);margin:0 6px 6px 0}
+button{font:600 1rem "Source Sans 3",sans-serif;border:0;border-radius:10px;padding:10px 16px;background:var(--accent);color:#fff;cursor:pointer;margin-top:14px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) button{color:#121726}}
+button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+<h1>Real or AI?</h1>
+<p class="lead">Upload a photo or video. We look for hidden traces of AI tools inside the file and tell you plainly what we found.</p>
+
+<label class="drop" id="drop">
+  <strong>Choose a photo or video</strong>
+  <span>Or drag and drop it here. Your file never leaves your phone or computer.</span>
+  <input type="file" id="file" accept="image/*,video/*">
+</label>
+
+<div id="result" aria-live="polite">
+  <div class="preview" id="preview"></div>
+  <div class="body">
+    <div class="verdict" id="verdict"></div>
+    <ul class="signals" id="signals"></ul>
+    <p class="note">This check only reads the marks and size stored inside the file. They are easy to remove (a screenshot wipes them), so “nothing found” does not mean “real”.</p>
+    <button type="button" id="again">Check another file</button>
+  </div>
+</div>
+
+<section class="next">
+  <h2>What works now, and what’s next</h2>
+  <p>Photos are checked two ways: marks inside the file, and a detector that looks at the pixels. Video is next.</p>
+  <span class="tag">Metadata check: live</span>
+  <span class="tag">C2PA / IPTC labels: live</span>
+  <span class="tag">Image model: live once deployed</span>
+  <span class="tag">Video frames + deepfake: needs a server</span>
+  <span class="tag">Hindi report: coming soon</span>
+</section>
+</main>
+
+<script>
+(function(){
+var MARKERS=[
+ {k:"c2pa",l:"C2PA content credentials (provenance data) found",s:"info"},
+ {k:"trainedalgorithmicmedia",l:"Labelled as AI-generated (IPTC: trainedAlgorithmicMedia)",s:"strong"},
+ {k:"compositewithtrainedalgorithmicmedia",l:"Labelled as partly AI-generated (IPTC)",s:"strong"},
+ {k:"midjourney",l:"Midjourney mentioned in file data",s:"strong"},
+ {k:"dall-e",l:"DALL·E mentioned in file data",s:"strong"},
+ {k:"dalle",l:"DALL·E mentioned in file data",s:"strong"},
+ {k:"openai",l:"OpenAI mentioned in file data",s:"strong"},
+ {k:"stable diffusion",l:"Stable Diffusion mentioned in file data",s:"strong"},
+ {k:"sampler:",l:"Image-generation settings (Sampler) saved in file",s:"strong"},
+ {k:"negative prompt",l:"Prompt data saved in file",s:"strong"},
+ {k:"comfyui",l:"ComfyUI workflow data found",s:"strong"},
+ {k:"automatic1111",l:"AUTOMATIC1111 data found",s:"strong"},
+ {k:"firefly",l:"Adobe Firefly mentioned in file data",s:"strong"},
+ {k:"leonardo.ai",l:"Leonardo.ai mentioned in file data",s:"strong"},
+ {k:"ideogram",l:"Ideogram mentioned in file data",s:"strong"},
+ {k:"made with google ai",l:"“Made with Google AI” label found",s:"strong"},
+ {k:"imagen",l:"Google Imagen mentioned in file data",s:"strong"},
+ {k:"runway",l:"Runway mentioned in file data",s:"strong"},
+ {k:"sora",l:"Sora mentioned in file data",s:"strong"},
+ {k:"pika",l:"Pika mentioned in file data",s:"strong"}
+];
+var CAMERAS=["canon","nikon","sony","apple","samsung","google","fujifilm","panasonic","olympus","xiaomi","oneplus","oppo","vivo","huawei","gopro","dji"];
+var AISIZES={"1024x1024":1,"1024x1792":1,"1792x1024":1,"512x512":1,"768x768":1,"1536x1536":1,"2048x2048":1,"1344x768":1,"768x1344":1,"1216x832":1,"832x1216":1,"896x1152":1,"1152x896":1,"1536x1024":1,"1024x1536":1,"1280x720x":0};
+var $=function(i){return document.getElementById(i)};
+var drop=$("drop"),input=$("file");
+["dragover","dragenter"].forEach(function(e){drop.addEventListener(e,function(ev){ev.preventDefault();drop.classList.add("over")})});
+["dragleave","drop"].forEach(function(e){drop.addEventListener(e,function(ev){ev.preventDefault();drop.classList.remove("over")})});
+drop.addEventListener("drop",function(ev){var f=ev.dataTransfer.files[0];if(f)run(f)});
+input.addEventListener("change",function(){if(input.files[0])run(input.files[0])});
+$("again").addEventListener("click",function(){$("result").style.display="none";input.value="";window.scrollTo(0,0)});
+
+function readSlice(blob){return new Promise(function(res){var r=new FileReader();r.onload=function(){res(new Uint8Array(r.result))};r.onerror=function(){res(new Uint8Array())};r.readAsArrayBuffer(blob)})}
+function toText(u8){var s="",c=32768;for(var i=0;i<u8.length;i+=c){s+=String.fromCharCode.apply(null,u8.subarray(i,i+c))}return s.toLowerCase()}
+
+function getSize(file,isVideo,url){return new Promise(function(res){
+  if(isVideo){var v=document.createElement("video");v.preload="metadata";v.onloadedmetadata=function(){res({w:v.videoWidth,h:v.videoHeight,d:v.duration})};v.onerror=function(){res(null)};v.src=url}
+  else{var im=new Image();im.onload=function(){res({w:im.naturalWidth,h:im.naturalHeight})};im.onerror=function(){res(null)};im.src=url}
+})}
+
+async function run(file){
+  var isVideo=file.type.indexOf("video")===0;
+  var url=URL.createObjectURL(file);
+  var pv=$("preview");pv.textContent="";
+  var el=document.createElement(isVideo?"video":"img");el.src=url;if(isVideo){el.controls=true;el.muted=true}else{el.alt="Uploaded file preview"}
+  pv.appendChild(el);
+  $("result").style.display="block";
+  $("verdict").className="verdict v-none";
+  $("verdict").innerHTML="<h2>Checking…</h2>";
+  $("signals").innerHTML="";
+
+  var CH=8*1024*1024,chunks=[await readSlice(file.slice(0,CH))];
+  if(file.size>CH*2){chunks.push(await readSlice(file.slice(file.size-CH)))}
+  var text=chunks.map(toText).join("\n");
+  var size=await getSize(file,isVideo,url);
+
+  var found=[],seen={},strong=0,weak=0,sig=[];
+  MARKERS.forEach(function(m){
+    if(text.indexOf(m.k)>-1&&!seen[m.l]){
+      seen[m.l]=1;found.push(m);
+      if(m.s==="strong"){strong++;sig.push(["f","Found",m.l])}
+      else sig.push(["i","Info",m.l+". This means the file carries a history record; reading it fully needs a C2PA tool, so we don’t treat it as proof of AI."]);
+    }
+  });
+  var hasExif=text.indexOf("exif")>-1,cam=CAMERAS.filter(function(c){return hasExif&&text.indexOf(c)>-1});
+  if(!isVideo){
+    if(cam.length){sig.push(["i","Camera","Camera data found (such as "+cam[0]+"). Real camera photos have this, but it can be faked."])}
+    else if(!hasExif){weak++;sig.push(["m","Missing","No camera data. Real photos often have it, but WhatsApp and screenshots strip it."])}
+  }
+  if(size){
+    var key=size.w+"x"+size.h;
+    if(AISIZES[key]===1){weak++;sig.push(["m","Size","Size "+size.w+"×"+size.h+" is a common output size for AI image tools. On its own it proves nothing."])}
+    else sig.push(["i","Size","Size "+size.w+"×"+size.h+(size.d?", "+Math.round(size.d)+" sec":"")+"."]);
+  }
+  if(file.type==="image/png"&&!hasExif&&!strong){sig.push(["i","Format","PNG file. Common for both screenshots and AI tools."])}
+
+  var ai=null;
+  if(!isVideo&&file.size<=4*1024*1024&&/^image\/(jpeg|png|webp|gif)$/.test(file.type)){
+    try{
+      var rr=await fetch("/api/detect",{method:"POST",headers:{"Content-Type":file.type},body:file});
+      var jj=await rr.json();
+      if(rr.ok&&typeof jj.ai==="number"){ai=jj.ai;sig.unshift([ai>=0.8?"f":ai>=0.5?"m":"i","Detector","AI-image detector: "+Math.round(ai*100)+"% likelihood of being AI-generated."])}
+      else sig.push(["i","Detector",jj.error||"The detector is unavailable right now."]);
+    }catch(e){sig.push(["i","Detector","The detector is not connected. Deploy the server to turn it on."])}
+  }else if(!isVideo){sig.push(["i","Detector","Images over 4 MB are not sent to the detector."])}
+  var v=$("verdict");
+  if(ai!==null&&ai>=0.8&&!strong){v.className="verdict v-bad";v.innerHTML="<h2>Likely AI-generated</h2><p>The detector scored this image "+Math.round(ai*100)+"%.</p>"}
+  else if(ai!==null&&ai>=0.5&&!strong){v.className="verdict v-warn";v.innerHTML="<h2>Possibly AI</h2><p>The detector scored this image "+Math.round(ai*100)+"%. Treat it as a warning, not proof.</p>"}
+  else if(strong){v.className="verdict v-bad";v.innerHTML="<h2>AI traces found</h2><p>The file contains information that AI tools leave behind.</p>"}
+  else if(weak>=2){v.className="verdict v-warn";v.innerHTML="<h2>Possibly AI</h2><p>No firm trace was found, but a few small hints add up.</p>"}
+  else if(ai!==null&&ai<0.2){v.className="verdict v-ok";v.innerHTML="<h2>Unlikely to be AI</h2><p>The detector scored this image "+Math.round(ai*100)+"%. No detector is perfect.</p>"}
+  else if(cam.length){v.className="verdict v-ok";v.innerHTML="<h2>Camera data found, no AI traces</h2><p>A good sign, but not proof.</p>"}
+  else{v.className="verdict v-none";v.innerHTML="<h2>Nothing conclusive</h2><p>No AI traces in the file, but that doesn’t show it is real.</p>"}
+
+  var ul=$("signals");ul.innerHTML="";
+  if(!sig.length)sig.push(["i","Info","No readable metadata in this file."]);
+  sig.forEach(function(s){var li=document.createElement("li");var b=document.createElement("b");b.className=s[0];b.textContent=s[1];var t=document.createElement("span");t.textContent=s[2];li.appendChild(b);li.appendChild(t);ul.appendChild(li)});
+  $("result").scrollIntoView({behavior:"smooth",block:"start"});
+}
+})();
+</script>
+</body>
+</html>
